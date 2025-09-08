@@ -66,7 +66,7 @@ const Badge = ({ children, className = "" }) => (
 function App() {
   const [activeTab, setActiveTab] = useState('overview')
   
-  // Estado para métricas dinâmicas
+  // Estado para métricas dinâmicas com valores padrão seguros
   const [metricas, setMetricas] = useState({
     total_produtos: { valor: 0, label: 'Produtos Cadastrados' },
     total_itens_estoque: { valor: 0, label: 'Total de Itens' },
@@ -77,18 +77,43 @@ function App() {
     pedidos_pendentes: { valor: 0, label: 'Pedidos Pendentes', status: 'normal' }
   })
 
-  // Função para atualizar métricas
+  // Função para obter valor seguro das métricas
+  const obterValorSeguro = (metrica) => {
+    try {
+      return metrica && typeof metrica === 'object' && metrica.valor !== undefined ? metrica.valor : 0
+    } catch (error) {
+      console.error('Erro ao acessar métrica:', error)
+      return 0
+    }
+  }
+
+  // Função para atualizar métricas com proteção contra erros
   const atualizarMetricas = async () => {
     try {
       console.log('Atualizando métricas...')
       const response = await fetch('https://mzhyi8c1dev6.manus.space/api/dashboard/metricas')
       if (response.ok) {
         const data = await response.json()
-        setMetricas(data)
-        console.log('Métricas atualizadas:', data)
+        
+        // Garantir que todas as métricas tenham a estrutura correta
+        const metricasSeguras = {
+          total_produtos: data.total_produtos || { valor: 0, label: 'Produtos Cadastrados' },
+          total_itens_estoque: data.total_itens_estoque || { valor: 0, label: 'Total de Itens' },
+          entradas_mes: data.entradas_mes || { valor: 0, label: 'Entradas do Mês', variacao: 0 },
+          produtos_estoque_baixo: data.produtos_estoque_baixo || { valor: 0, label: 'Estoque Baixo', status: 'normal' },
+          produtos_validade_proxima: data.produtos_validade_proxima || { valor: 0, label: 'Validade Próxima', status: 'normal' },
+          saidas_mes: data.saidas_mes || { valor: 0, label: 'Saídas do Mês', variacao: 0 },
+          pedidos_pendentes: data.pedidos_pendentes || { valor: 0, label: 'Pedidos Pendentes', status: 'normal' }
+        }
+        
+        setMetricas(metricasSeguras)
+        console.log('Métricas atualizadas com segurança:', metricasSeguras)
+      } else {
+        console.warn('Resposta não OK do servidor, mantendo métricas padrão')
       }
     } catch (error) {
-      console.error('Erro ao atualizar métricas:', error)
+      console.error('Erro ao atualizar métricas (mantendo valores padrão):', error)
+      // Não fazer nada - manter valores padrão
     }
   }
 
@@ -131,15 +156,15 @@ function App() {
       const carregarDados = async () => {
         try {
           const [produtosRes, fornecedoresRes] = await Promise.all([
-            fetch('https://mzhyi8c1dev6.manus.space/api/produtos'),
-            fetch('https://mzhyi8c1dev6.manus.space/api/fornecedores')
+            fetch('https://mzhyi8c1dev6.manus.space/api/produtos').catch(() => ({ ok: false })),
+            fetch('https://mzhyi8c1dev6.manus.space/api/fornecedores').catch(() => ({ ok: false }))
           ])
           
           if (produtosRes.ok) {
             const produtosData = await produtosRes.json()
             const produtosList = produtosData.data || produtosData || []
             // Ordenar alfabeticamente
-            produtosList.sort((a, b) => a.nome.localeCompare(b.nome))
+            produtosList.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''))
             setProdutos(produtosList)
             console.log('Produtos carregados:', produtosData)
           }
@@ -148,7 +173,7 @@ function App() {
             const fornecedoresData = await fornecedoresRes.json()
             const fornecedoresList = fornecedoresData.data || fornecedoresData || []
             // Ordenar alfabeticamente
-            fornecedoresList.sort((a, b) => a.nome.localeCompare(b.nome))
+            fornecedoresList.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''))
             setFornecedores(fornecedoresList)
             console.log('Fornecedores carregados:', fornecedoresData)
           }
@@ -175,7 +200,7 @@ function App() {
 
         if (response.ok) {
           const novoForn = await response.json()
-          const novosFornecedores = [...fornecedores, novoForn].sort((a, b) => a.nome.localeCompare(b.nome))
+          const novosFornecedores = [...fornecedores, novoForn].sort((a, b) => (a.nome || '').localeCompare(b.nome || ''))
           setFornecedores(novosFornecedores)
           setNovoFornecedor({ nome: '', contato: '', email: '' })
           setMostrarFormFornecedor(false)
@@ -218,11 +243,12 @@ function App() {
             validade: '',
             numero_nf: ''
           })
+          // Atualizar métricas de forma segura
           if (window.atualizarMetricas) {
-            window.atualizarMetricas()
+            setTimeout(() => window.atualizarMetricas(), 1000)
           }
         } else {
-          const errorData = await response.json()
+          const errorData = await response.json().catch(() => ({ message: 'Erro desconhecido' }))
           console.error('Erro na resposta:', errorData)
           alert('Erro ao registrar entrada: ' + (errorData.message || 'Erro desconhecido'))
         }
@@ -266,7 +292,7 @@ function App() {
                     <option value="">Selecione um produto cadastrado</option>
                     {produtos.map(produto => (
                       <option key={produto.id} value={produto.id}>
-                        {produto.nome}
+                        {produto.nome || 'Produto sem nome'}
                       </option>
                     ))}
                   </select>
@@ -289,7 +315,7 @@ function App() {
                       <option value="">Selecione um fornecedor</option>
                       {fornecedores.map(fornecedor => (
                         <option key={fornecedor.id} value={fornecedor.id}>
-                          {fornecedor.nome}
+                          {fornecedor.nome || 'Fornecedor sem nome'}
                         </option>
                       ))}
                     </select>
@@ -431,12 +457,12 @@ function App() {
       console.log('Carregando produtos para SaidaEstoque')
       const carregarProdutos = async () => {
         try {
-          const response = await fetch('https://mzhyi8c1dev6.manus.space/api/produtos')
+          const response = await fetch('https://mzhyi8c1dev6.manus.space/api/produtos').catch(() => ({ ok: false }))
           if (response.ok) {
             const data = await response.json()
             const produtosList = data.data || data || []
             // Ordenar alfabeticamente
-            produtosList.sort((a, b) => a.nome.localeCompare(b.nome))
+            produtosList.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''))
             setProdutos(produtosList)
             console.log('Produtos carregados para saída:', data)
           }
@@ -477,11 +503,12 @@ function App() {
             local_destino: '',
             observacoes: ''
           })
+          // Atualizar métricas de forma segura
           if (window.atualizarMetricas) {
-            window.atualizarMetricas()
+            setTimeout(() => window.atualizarMetricas(), 1000)
           }
         } else {
-          const errorData = await response.json()
+          const errorData = await response.json().catch(() => ({ message: 'Erro desconhecido' }))
           console.error('Erro na resposta:', errorData)
           alert('Erro ao registrar saída: ' + (errorData.message || 'Erro desconhecido'))
         }
@@ -524,7 +551,7 @@ function App() {
                   <option value="">Selecione um produto cadastrado</option>
                   {produtos.map(produto => (
                     <option key={produto.id} value={produto.id}>
-                      {produto.nome}
+                      {produto.nome || 'Produto sem nome'}
                     </option>
                   ))}
                 </select>
@@ -609,12 +636,12 @@ function App() {
     useEffect(() => {
       const carregarProdutos = async () => {
         try {
-          const response = await fetch('https://mzhyi8c1dev6.manus.space/api/produtos')
+          const response = await fetch('https://mzhyi8c1dev6.manus.space/api/produtos').catch(() => ({ ok: false }))
           if (response.ok) {
             const data = await response.json()
             const produtosList = data.data || data || []
             // Ordenar alfabeticamente
-            produtosList.sort((a, b) => a.nome.localeCompare(b.nome))
+            produtosList.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''))
             setProdutos(produtosList)
           }
         } catch (error) {
@@ -646,11 +673,11 @@ function App() {
           const novoProduto = await response.json()
           
           if (editando) {
-            setProdutos(produtos.map(p => p.id === editando ? novoProduto : p).sort((a, b) => a.nome.localeCompare(b.nome)))
+            setProdutos(produtos.map(p => p.id === editando ? novoProduto : p).sort((a, b) => (a.nome || '').localeCompare(b.nome || '')))
             setEditando(null)
             alert('Produto atualizado com sucesso!')
           } else {
-            setProdutos([...produtos, novoProduto].sort((a, b) => a.nome.localeCompare(b.nome)))
+            setProdutos([...produtos, novoProduto].sort((a, b) => (a.nome || '').localeCompare(b.nome || '')))
             alert('Produto cadastrado com sucesso!')
           }
           
@@ -662,7 +689,7 @@ function App() {
             descricao: ''
           })
         } else {
-          const errorData = await response.json()
+          const errorData = await response.json().catch(() => ({ message: 'Erro desconhecido' }))
           alert('Erro ao salvar produto: ' + (errorData.message || 'Erro desconhecido'))
         }
       } catch (error) {
@@ -753,7 +780,7 @@ function App() {
                   <input
                     type="number"
                     value={produto.estoque_minimo}
-                    onChange={(e) => setProduto({...produto, estoque_minimo: parseInt(e.target.value)})}
+                    onChange={(e) => setProduto({...produto, estoque_minimo: parseInt(e.target.value) || 0})}
                     className="w-full p-3 border-2 rounded-lg focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all"
                     min="1"
                     required
@@ -837,13 +864,13 @@ function App() {
                   <tbody>
                     {produtos.map(prod => (
                       <tr key={prod.id} className="border-b hover:bg-gray-50">
-                        <td className="px-4 py-2 font-medium">{prod.nome}</td>
+                        <td className="px-4 py-2 font-medium">{prod.nome || 'Sem nome'}</td>
                         <td className="px-4 py-2">
                           <Badge className="bg-purple-100 text-purple-800">
-                            {prod.categoria}
+                            {prod.categoria || 'Sem categoria'}
                           </Badge>
                         </td>
-                        <td className="px-4 py-2">{prod.estoque_minimo}</td>
+                        <td className="px-4 py-2">{prod.estoque_minimo || 0}</td>
                         <td className="px-4 py-2">
                           {prod.preco_unitario ? `R$ ${parseFloat(prod.preco_unitario).toFixed(2)}` : '-'}
                         </td>
@@ -947,8 +974,8 @@ function App() {
                         <CardContent className="p-4">
                           <div className="flex justify-between items-start">
                             <div className="flex-1">
-                              <h4 className="font-semibold text-gray-800">{sugestao.produto}</h4>
-                              <p className="text-sm text-gray-600 mt-1">{sugestao.justificativa}</p>
+                              <h4 className="font-semibold text-gray-800">{sugestao.produto || 'Produto'}</h4>
+                              <p className="text-sm text-gray-600 mt-1">{sugestao.justificativa || 'Sem justificativa'}</p>
                             </div>
                             <div className="text-right">
                               <Badge className={`${
@@ -956,10 +983,10 @@ function App() {
                                 sugestao.prioridade === 'Média' ? 'bg-yellow-100 text-yellow-800' :
                                 'bg-green-100 text-green-800'
                               }`}>
-                                {sugestao.prioridade}
+                                {sugestao.prioridade || 'Normal'}
                               </Badge>
                               <p className="text-lg font-bold text-gray-800 mt-1">
-                                {sugestao.quantidade} unidades
+                                {sugestao.quantidade || 0} unidades
                               </p>
                             </div>
                           </div>
@@ -1044,7 +1071,7 @@ function App() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-gray-600">Total de Produtos</p>
-                      <p className="text-3xl font-bold text-green-600">{metricas.total_produtos.valor}</p>
+                      <p className="text-3xl font-bold text-green-600">{obterValorSeguro(metricas.total_produtos)}</p>
                     </div>
                     <Package className="h-8 w-8 text-green-500" />
                   </div>
@@ -1056,7 +1083,7 @@ function App() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-gray-600">Itens em Estoque</p>
-                      <p className="text-3xl font-bold text-blue-600">{metricas.total_itens_estoque.valor}</p>
+                      <p className="text-3xl font-bold text-blue-600">{obterValorSeguro(metricas.total_itens_estoque)}</p>
                     </div>
                     <Activity className="h-8 w-8 text-blue-500" />
                   </div>
@@ -1068,7 +1095,7 @@ function App() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-gray-600">Entradas do Mês</p>
-                      <p className="text-3xl font-bold text-orange-600">{metricas.entradas_mes.valor}</p>
+                      <p className="text-3xl font-bold text-orange-600">{obterValorSeguro(metricas.entradas_mes)}</p>
                     </div>
                     <TrendingUp className="h-8 w-8 text-orange-500" />
                   </div>
@@ -1080,7 +1107,7 @@ function App() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-gray-600">Estoque Baixo</p>
-                      <p className="text-3xl font-bold text-red-600">{metricas.produtos_estoque_baixo.valor}</p>
+                      <p className="text-3xl font-bold text-red-600">{obterValorSeguro(metricas.produtos_estoque_baixo)}</p>
                     </div>
                     <AlertTriangle className="h-8 w-8 text-red-500" />
                   </div>
@@ -1095,7 +1122,7 @@ function App() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-gray-600">Saídas do Mês</p>
-                      <p className="text-2xl font-bold text-purple-600">{metricas.saidas_mes.valor}</p>
+                      <p className="text-2xl font-bold text-purple-600">{obterValorSeguro(metricas.saidas_mes)}</p>
                     </div>
                     <TrendingDown className="h-6 w-6 text-purple-500" />
                   </div>
@@ -1107,7 +1134,7 @@ function App() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-gray-600">Validade Próxima</p>
-                      <p className="text-2xl font-bold text-yellow-600">{metricas.produtos_validade_proxima.valor}</p>
+                      <p className="text-2xl font-bold text-yellow-600">{obterValorSeguro(metricas.produtos_validade_proxima)}</p>
                     </div>
                     <Calendar className="h-6 w-6 text-yellow-500" />
                   </div>
@@ -1119,7 +1146,7 @@ function App() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-gray-600">Pedidos Pendentes</p>
-                      <p className="text-2xl font-bold text-indigo-600">{metricas.pedidos_pendentes.valor}</p>
+                      <p className="text-2xl font-bold text-indigo-600">{obterValorSeguro(metricas.pedidos_pendentes)}</p>
                     </div>
                     <ShoppingCart className="h-6 w-6 text-indigo-500" />
                   </div>
