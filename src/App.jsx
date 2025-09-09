@@ -13,7 +13,10 @@ import {
   Edit,
   Trash2,
   Brain,
-  Users
+  Users,
+  Eye,
+  History,
+  User
 } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPieChart, Cell, Pie } from 'recharts'
 import './App.css'
@@ -67,7 +70,7 @@ const Badge = ({ children, className = "" }) => (
 function App() {
   const [activeTab, setActiveTab] = useState('overview')
   
-  // Estado para métricas dinâmicas com valores padrão seguros
+  // Estado para métricas dinâmicas REAIS
   const [metricas, setMetricas] = useState({
     total_produtos: { valor: 0, label: 'Produtos Cadastrados' },
     total_itens_estoque: { valor: 0, label: 'Total de Itens' },
@@ -76,6 +79,14 @@ function App() {
     produtos_validade_proxima: { valor: 0, label: 'Validade Próxima', status: 'normal' },
     saidas_mes: { valor: 0, label: 'Saídas do Mês', variacao: 0 },
     pedidos_pendentes: { valor: 0, label: 'Pedidos Pendentes', status: 'normal' }
+  })
+
+  // Estados para dados reais
+  const [dadosReais, setDadosReais] = useState({
+    tendencia: [],
+    distribuicao: [],
+    estoque: [],
+    movimentacoes: []
   })
 
   // Função para obter valor seguro das métricas
@@ -88,40 +99,48 @@ function App() {
     }
   }
 
-  // Função para atualizar métricas com proteção contra erros
-  const atualizarMetricas = async () => {
+  // Função para atualizar métricas e dados reais
+  const atualizarDados = async () => {
     try {
-      console.log('Atualizando métricas...')
-      const response = await fetch('https://mzhyi8c1dev6.manus.space/api/dashboard/metricas')
-      if (response.ok) {
-        const data = await response.json()
-        
-        // Garantir que todas as métricas tenham a estrutura correta
-        const metricasSeguras = {
-          total_produtos: data.total_produtos || { valor: 0, label: 'Produtos Cadastrados' },
-          total_itens_estoque: data.total_itens_estoque || { valor: 0, label: 'Total de Itens' },
-          entradas_mes: data.entradas_mes || { valor: 0, label: 'Entradas do Mês', variacao: 0 },
-          produtos_estoque_baixo: data.produtos_estoque_baixo || { valor: 0, label: 'Estoque Baixo', status: 'normal' },
-          produtos_validade_proxima: data.produtos_validade_proxima || { valor: 0, label: 'Validade Próxima', status: 'normal' },
-          saidas_mes: data.saidas_mes || { valor: 0, label: 'Saídas do Mês', variacao: 0 },
-          pedidos_pendentes: data.pedidos_pendentes || { valor: 0, label: 'Pedidos Pendentes', status: 'normal' }
-        }
-        
-        setMetricas(metricasSeguras)
-        console.log('Métricas atualizadas com segurança:', metricasSeguras)
-      } else {
-        console.warn('Resposta não OK do servidor, mantendo métricas padrão')
+      console.log('Atualizando dados reais...')
+      
+      // Buscar métricas
+      const metricasResponse = await fetch('https://mzhyi8c1dev6.manus.space/api/dashboard/metricas').catch(() => ({ ok: false }))
+      if (metricasResponse.ok) {
+        const metricasData = await metricasResponse.json()
+        setMetricas({
+          total_produtos: metricasData.total_produtos || { valor: 0, label: 'Produtos Cadastrados' },
+          total_itens_estoque: metricasData.total_itens_estoque || { valor: 0, label: 'Total de Itens' },
+          entradas_mes: metricasData.entradas_mes || { valor: 0, label: 'Entradas do Mês', variacao: 0 },
+          produtos_estoque_baixo: metricasData.produtos_estoque_baixo || { valor: 0, label: 'Estoque Baixo', status: 'normal' },
+          produtos_validade_proxima: metricasData.produtos_validade_proxima || { valor: 0, label: 'Validade Próxima', status: 'normal' },
+          saidas_mes: metricasData.saidas_mes || { valor: 0, label: 'Saídas do Mês', variacao: 0 },
+          pedidos_pendentes: metricasData.pedidos_pendentes || { valor: 0, label: 'Pedidos Pendentes', status: 'normal' }
+        })
       }
+
+      // Buscar dados para gráficos REAIS
+      const graficosResponse = await fetch('https://mzhyi8c1dev6.manus.space/api/dashboard/graficos').catch(() => ({ ok: false }))
+      if (graficosResponse.ok) {
+        const graficosData = await graficosResponse.json()
+        setDadosReais({
+          tendencia: graficosData.tendencia || [],
+          distribuicao: graficosData.distribuicao || [],
+          estoque: graficosData.estoque || [],
+          movimentacoes: graficosData.movimentacoes || []
+        })
+      }
+
+      console.log('Dados atualizados com sucesso')
     } catch (error) {
-      console.error('Erro ao atualizar métricas (mantendo valores padrão):', error)
-      // Não fazer nada - manter valores padrão
+      console.error('Erro ao atualizar dados:', error)
     }
   }
 
   // Disponibilizar função globalmente
   useEffect(() => {
-    window.atualizarMetricas = atualizarMetricas
-    atualizarMetricas() // Carregar métricas iniciais
+    window.atualizarDados = atualizarDados
+    atualizarDados() // Carregar dados iniciais
   }, [])
 
   const tabs = [
@@ -130,14 +149,13 @@ function App() {
     { id: 'saidas', label: 'Saídas', color: 'border-orange-500' },
     { id: 'produtos', label: 'Produtos', color: 'border-purple-500' },
     { id: 'fornecedores', label: 'Fornecedores', color: 'border-teal-500' },
-    { id: 'importacao', label: 'Importação', color: 'border-indigo-500' },
-    { id: 'relatorios', label: 'Relatórios', color: 'border-pink-500' }
+    { id: 'estoque', label: 'Estoque Atual', color: 'border-indigo-500' },
+    { id: 'movimentacoes', label: 'Movimentações', color: 'border-pink-500' },
+    { id: 'relatorios', label: 'Relatórios', color: 'border-red-500' }
   ]
 
   // Componente para entrada de estoque
   const EntradaEstoque = () => {
-    console.log('Renderizando EntradaEstoque')
-    
     const [entrada, setEntrada] = useState({
       produto_id: '',
       fornecedor_id: '',
@@ -154,7 +172,6 @@ function App() {
     const [carregado, setCarregado] = useState(false)
 
     useEffect(() => {
-      console.log('Carregando dados para EntradaEstoque')
       const carregarDados = async () => {
         try {
           const [produtosRes, fornecedoresRes] = await Promise.all([
@@ -165,19 +182,15 @@ function App() {
           if (produtosRes.ok) {
             const produtosData = await produtosRes.json()
             const produtosList = produtosData.data || produtosData || []
-            // Ordenar alfabeticamente
             produtosList.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''))
             setProdutos(produtosList)
-            console.log('Produtos carregados:', produtosData)
           }
           
           if (fornecedoresRes.ok) {
             const fornecedoresData = await fornecedoresRes.json()
             const fornecedoresList = fornecedoresData.data || fornecedoresData || []
-            // Ordenar alfabeticamente
             fornecedoresList.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''))
             setFornecedores(fornecedoresList)
-            console.log('Fornecedores carregados:', fornecedoresData)
           }
         } catch (error) {
           console.error('Erro ao carregar dados:', error)
@@ -191,7 +204,6 @@ function App() {
 
     const handleSubmitFornecedor = async (e) => {
       e.preventDefault()
-      console.log('Cadastrando fornecedor:', novoFornecedor)
       
       try {
         const response = await fetch('https://mzhyi8c1dev6.manus.space/api/fornecedores', {
@@ -220,13 +232,11 @@ function App() {
     const handleSubmit = async (e) => {
       e.preventDefault()
       
-      // Validar se produto foi selecionado
       if (!entrada.produto_id) {
         alert('Por favor, selecione um produto cadastrado!')
         return
       }
 
-      console.log('Registrando entrada:', entrada)
       setSalvando(true)
 
       try {
@@ -246,15 +256,14 @@ function App() {
             validade: '',
             numero_nf: ''
           })
-          // Atualizar métricas de forma segura e forçada
+          // Atualizar dados reais
           setTimeout(() => {
-            if (window.atualizarMetricas) {
-              window.atualizarMetricas()
+            if (window.atualizarDados) {
+              window.atualizarDados()
             }
-          }, 2000) // Aguardar 2 segundos para o backend processar
+          }, 2000)
         } else {
           const errorData = await response.json().catch(() => ({ message: 'Erro desconhecido' }))
-          console.error('Erro na resposta:', errorData)
           alert('Erro ao registrar entrada: ' + (errorData.message || 'Erro desconhecido'))
         }
       } catch (error) {
@@ -301,11 +310,6 @@ function App() {
                       </option>
                     ))}
                   </select>
-                  {produtos.length === 0 && (
-                    <p className="text-sm text-gray-500 mt-1">
-                      Nenhum produto cadastrado. Cadastre produtos na aba "Produtos".
-                    </p>
-                  )}
                 </div>
 
                 <div>
@@ -444,22 +448,19 @@ function App() {
     )
   }
 
-  // Componente para saída de estoque - CORRIGIDO
+  // Componente para saída de estoque - COM SOLICITANTE
   const SaidaEstoque = () => {
-    console.log('Renderizando SaidaEstoque')
-    
     const [saida, setSaida] = useState({
       produto_id: '',
       quantidade: '',
-      local_destino_id: '', // CORRIGIDO: usar local_destino_id
+      local_destino_id: '',
+      solicitante: '', // NOVO CAMPO
       observacoes: ''
     })
     const [produtos, setProdutos] = useState([])
-    const [locais, setLocais] = useState([])
     const [salvando, setSalvando] = useState(false)
     const [carregado, setCarregado] = useState(false)
 
-    // Locais predefinidos com IDs
     const locaisPredefinidos = [
       { id: 1, nome: 'Farmácia' },
       { id: 2, nome: 'Lab. Clínico' },
@@ -470,21 +471,15 @@ function App() {
     ]
 
     useEffect(() => {
-      console.log('Carregando produtos para SaidaEstoque')
       const carregarProdutos = async () => {
         try {
           const response = await fetch('https://mzhyi8c1dev6.manus.space/api/produtos').catch(() => ({ ok: false }))
           if (response.ok) {
             const data = await response.json()
             const produtosList = data.data || data || []
-            // Ordenar alfabeticamente
             produtosList.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''))
             setProdutos(produtosList)
-            console.log('Produtos carregados para saída:', data)
           }
-          
-          // Definir locais predefinidos
-          setLocais(locaisPredefinidos)
         } catch (error) {
           console.error('Erro ao carregar produtos:', error)
         } finally {
@@ -498,31 +493,31 @@ function App() {
     const handleSubmit = async (e) => {
       e.preventDefault()
       
-      // Validar se produto foi selecionado
       if (!saida.produto_id) {
         alert('Por favor, selecione um produto cadastrado!')
         return
       }
 
-      // Validar se local foi selecionado
       if (!saida.local_destino_id) {
         alert('Por favor, selecione um local de destino!')
         return
       }
 
-      console.log('Registrando saída:', saida)
+      if (!saida.solicitante.trim()) {
+        alert('Por favor, informe o solicitante!')
+        return
+      }
+
       setSalvando(true)
 
       try {
-        // Preparar dados para envio
         const dadosSaida = {
           produto_id: parseInt(saida.produto_id),
           quantidade: parseInt(saida.quantidade),
           local_destino_id: parseInt(saida.local_destino_id),
+          solicitante: saida.solicitante.trim(),
           observacoes: saida.observacoes || ''
         }
-
-        console.log('Dados da saída preparados:', dadosSaida)
 
         const response = await fetch('https://mzhyi8c1dev6.manus.space/api/estoque/saidas', {
           method: 'POST',
@@ -536,17 +531,17 @@ function App() {
             produto_id: '',
             quantidade: '',
             local_destino_id: '',
+            solicitante: '',
             observacoes: ''
           })
-          // Atualizar métricas de forma segura e forçada
+          // Atualizar dados reais
           setTimeout(() => {
-            if (window.atualizarMetricas) {
-              window.atualizarMetricas()
+            if (window.atualizarDados) {
+              window.atualizarDados()
             }
-          }, 2000) // Aguardar 2 segundos para o backend processar
+          }, 2000)
         } else {
           const errorData = await response.json().catch(() => ({ message: 'Erro desconhecido' }))
-          console.error('Erro na resposta:', errorData)
           alert('Erro ao registrar saída: ' + (errorData.message || 'Erro desconhecido'))
         }
       } catch (error) {
@@ -592,14 +587,9 @@ function App() {
                     </option>
                   ))}
                 </select>
-                {produtos.length === 0 && (
-                  <p className="text-sm text-gray-500 mt-1">
-                    Nenhum produto cadastrado. Cadastre produtos na aba "Produtos".
-                  </p>
-                )}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-semibold mb-2 text-gray-700">Quantidade *</label>
                   <input
@@ -621,12 +611,24 @@ function App() {
                     required
                   >
                     <option value="">Selecione o destino</option>
-                    {locais.map(local => (
+                    {locaisPredefinidos.map(local => (
                       <option key={local.id} value={local.id}>
                         {local.nome}
                       </option>
                     ))}
                   </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold mb-2 text-gray-700">Solicitante *</label>
+                  <input
+                    type="text"
+                    value={saida.solicitante}
+                    onChange={(e) => setSaida({...saida, solicitante: e.target.value})}
+                    className="w-full p-3 border-2 rounded-lg focus:border-orange-500 focus:ring-2 focus:ring-orange-200 transition-all"
+                    placeholder="Nome do solicitante"
+                    required
+                  />
                 </div>
               </div>
 
@@ -655,13 +657,12 @@ function App() {
     )
   }
 
-  // Componente para cadastro de produtos - CORRIGIDO
+  // Componente para cadastro de produtos - SEM PREÇO UNITÁRIO
   const CadastrarProduto = () => {
     const [produto, setProduto] = useState({
       nome: '',
       categoria: '',
       estoque_minimo: 10,
-      preco_unitario: '',
       descricao: ''
     })
     const [produtos, setProdutos] = useState([])
@@ -676,7 +677,6 @@ function App() {
           if (response.ok) {
             const data = await response.json()
             const produtosList = data.data || data || []
-            // Ordenar alfabeticamente
             produtosList.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''))
             setProdutos(produtosList)
           }
@@ -699,17 +699,13 @@ function App() {
           ? `https://mzhyi8c1dev6.manus.space/api/produtos/${editando}`
           : 'https://mzhyi8c1dev6.manus.space/api/produtos'
         
-        // Preparar dados para envio
         const dadosProduto = {
           nome: produto.nome,
           categoria: produto.categoria,
           estoque_minimo: parseInt(produto.estoque_minimo) || 10,
-          preco_unitario: produto.preco_unitario ? parseFloat(produto.preco_unitario) : null,
           descricao: produto.descricao || ''
         }
 
-        console.log('Enviando produto:', dadosProduto)
-        
         const response = await fetch(url, {
           method: editando ? 'PUT' : 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -720,34 +716,28 @@ function App() {
           const produtoRetornado = await response.json()
           
           if (editando) {
-            // Atualizar produto na lista
             setProdutos(produtos.map(p => p.id === editando ? produtoRetornado : p).sort((a, b) => (a.nome || '').localeCompare(b.nome || '')))
             setEditando(null)
             alert('Produto atualizado com sucesso!')
           } else {
-            // Adicionar novo produto à lista
             setProdutos([...produtos, produtoRetornado].sort((a, b) => (a.nome || '').localeCompare(b.nome || '')))
             alert('Produto cadastrado com sucesso!')
           }
           
-          // Limpar formulário
           setProduto({
             nome: '',
             categoria: '',
             estoque_minimo: 10,
-            preco_unitario: '',
             descricao: ''
           })
 
-          // Atualizar métricas
           setTimeout(() => {
-            if (window.atualizarMetricas) {
-              window.atualizarMetricas()
+            if (window.atualizarDados) {
+              window.atualizarDados()
             }
           }, 1000)
         } else {
           const errorData = await response.json().catch(() => ({ message: 'Erro desconhecido' }))
-          console.error('Erro na resposta:', errorData)
           alert('Erro ao salvar produto: ' + (errorData.message || 'Erro desconhecido'))
         }
       } catch (error) {
@@ -763,7 +753,6 @@ function App() {
         nome: produtoParaEditar.nome || '',
         categoria: produtoParaEditar.categoria || '',
         estoque_minimo: produtoParaEditar.estoque_minimo || 10,
-        preco_unitario: produtoParaEditar.preco_unitario || '',
         descricao: produtoParaEditar.descricao || ''
       })
       setEditando(produtoParaEditar.id)
@@ -781,10 +770,9 @@ function App() {
           setProdutos(produtos.filter(p => p.id !== id))
           alert('Produto excluído com sucesso!')
           
-          // Atualizar métricas
           setTimeout(() => {
-            if (window.atualizarMetricas) {
-              window.atualizarMetricas()
+            if (window.atualizarDados) {
+              window.atualizarDados()
             }
           }, 1000)
         } else {
@@ -803,7 +791,6 @@ function App() {
         nome: '',
         categoria: '',
         estoque_minimo: 10,
-        preco_unitario: '',
         descricao: ''
       })
     }
@@ -830,7 +817,7 @@ function App() {
                 />
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold mb-2 text-gray-700">Categoria *</label>
                   <select
@@ -856,17 +843,6 @@ function App() {
                     className="w-full p-3 border-2 rounded-lg focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all"
                     min="1"
                     required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold mb-2 text-gray-700">Preço Unitário</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={produto.preco_unitario}
-                    onChange={(e) => setProduto({...produto, preco_unitario: e.target.value})}
-                    className="w-full p-3 border-2 rounded-lg focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all"
-                    min="0"
                   />
                 </div>
               </div>
@@ -929,7 +905,6 @@ function App() {
                       <th className="px-4 py-2 text-left">Nome</th>
                       <th className="px-4 py-2 text-left">Categoria</th>
                       <th className="px-4 py-2 text-left">Estoque Mín.</th>
-                      <th className="px-4 py-2 text-left">Preço</th>
                       <th className="px-4 py-2 text-center">Ações</th>
                     </tr>
                   </thead>
@@ -943,9 +918,6 @@ function App() {
                           </Badge>
                         </td>
                         <td className="px-4 py-2">{prod.estoque_minimo || 0}</td>
-                        <td className="px-4 py-2">
-                          {prod.preco_unitario ? `R$ ${parseFloat(prod.preco_unitario).toFixed(2)}` : '-'}
-                        </td>
                         <td className="px-4 py-2 text-center">
                           <div className="flex justify-center space-x-2">
                             <button
@@ -976,7 +948,7 @@ function App() {
     )
   }
 
-  // Componente para gerenciar fornecedores - NOVO
+  // Componente para gerenciar fornecedores - EXCLUSÃO CORRIGIDA
   const GerenciarFornecedores = () => {
     const [fornecedor, setFornecedor] = useState({
       nome: '',
@@ -988,24 +960,23 @@ function App() {
     const [carregado, setCarregado] = useState(false)
     const [editando, setEditando] = useState(null)
 
-    useEffect(() => {
-      const carregarFornecedores = async () => {
-        try {
-          const response = await fetch('https://mzhyi8c1dev6.manus.space/api/fornecedores').catch(() => ({ ok: false }))
-          if (response.ok) {
-            const data = await response.json()
-            const fornecedoresList = data.data || data || []
-            // Ordenar alfabeticamente
-            fornecedoresList.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''))
-            setFornecedores(fornecedoresList)
-          }
-        } catch (error) {
-          console.error('Erro ao carregar fornecedores:', error)
-        } finally {
-          setCarregado(true)
+    const carregarFornecedores = async () => {
+      try {
+        const response = await fetch('https://mzhyi8c1dev6.manus.space/api/fornecedores').catch(() => ({ ok: false }))
+        if (response.ok) {
+          const data = await response.json()
+          const fornecedoresList = data.data || data || []
+          fornecedoresList.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''))
+          setFornecedores(fornecedoresList)
         }
+      } catch (error) {
+        console.error('Erro ao carregar fornecedores:', error)
+      } finally {
+        setCarregado(true)
       }
-      
+    }
+
+    useEffect(() => {
       carregarFornecedores()
     }, [])
 
@@ -1071,7 +1042,8 @@ function App() {
         })
 
         if (response.ok) {
-          setFornecedores(fornecedores.filter(f => f.id !== id))
+          // Recarregar lista completa do servidor para garantir sincronização
+          await carregarFornecedores()
           alert('Fornecedor excluído com sucesso!')
         } else {
           const errorData = await response.json().catch(() => ({ message: 'Erro desconhecido' }))
@@ -1223,10 +1195,240 @@ function App() {
     )
   }
 
-  // Componente de Análise Preditiva com IA
+  // NOVO: Componente para visualizar estoque atual
+  const EstoqueAtual = () => {
+    const [estoque, setEstoque] = useState([])
+    const [carregado, setCarregado] = useState(false)
+    const [filtro, setFiltro] = useState('')
+
+    useEffect(() => {
+      const carregarEstoque = async () => {
+        try {
+          const response = await fetch('https://mzhyi8c1dev6.manus.space/api/estoque/atual').catch(() => ({ ok: false }))
+          if (response.ok) {
+            const data = await response.json()
+            const estoqueList = data.data || data || []
+            estoqueList.sort((a, b) => (a.produto_nome || '').localeCompare(b.produto_nome || ''))
+            setEstoque(estoqueList)
+          }
+        } catch (error) {
+          console.error('Erro ao carregar estoque:', error)
+        } finally {
+          setCarregado(true)
+        }
+      }
+      
+      carregarEstoque()
+    }, [])
+
+    const estoqueFiltrado = estoque.filter(item => 
+      (item.produto_nome || '').toLowerCase().includes(filtro.toLowerCase()) ||
+      (item.categoria || '').toLowerCase().includes(filtro.toLowerCase())
+    )
+
+    return (
+      <div className="space-y-6">
+        <Card className="bg-white border-2 border-indigo-500 shadow-lg">
+          <CardHeader className="bg-indigo-50">
+            <CardTitle className="flex items-center space-x-2 text-indigo-700">
+              <Eye className="h-6 w-6" />
+              <span>Estoque Atual</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="mb-4">
+              <input
+                type="text"
+                placeholder="Filtrar por produto ou categoria..."
+                value={filtro}
+                onChange={(e) => setFiltro(e.target.value)}
+                className="w-full p-3 border-2 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+              />
+            </div>
+
+            {!carregado ? (
+              <div className="flex items-center justify-center p-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
+                <span className="ml-2">Carregando estoque...</span>
+              </div>
+            ) : estoqueFiltrado.length === 0 ? (
+              <p className="text-gray-500 text-center py-8">
+                {filtro ? 'Nenhum item encontrado com esse filtro.' : 'Nenhum item em estoque.'}
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full table-auto">
+                  <thead>
+                    <tr className="bg-gray-50">
+                      <th className="px-4 py-2 text-left">Produto</th>
+                      <th className="px-4 py-2 text-left">Categoria</th>
+                      <th className="px-4 py-2 text-center">Quantidade</th>
+                      <th className="px-4 py-2 text-center">Estoque Mín.</th>
+                      <th className="px-4 py-2 text-center">Status</th>
+                      <th className="px-4 py-2 text-left">Último Lote</th>
+                      <th className="px-4 py-2 text-left">Validade</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {estoqueFiltrado.map(item => (
+                      <tr key={item.id} className="border-b hover:bg-gray-50">
+                        <td className="px-4 py-2 font-medium">{item.produto_nome || 'Sem nome'}</td>
+                        <td className="px-4 py-2">
+                          <Badge className="bg-indigo-100 text-indigo-800">
+                            {item.categoria || 'Sem categoria'}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-2 text-center font-bold">{item.quantidade_total || 0}</td>
+                        <td className="px-4 py-2 text-center">{item.estoque_minimo || 0}</td>
+                        <td className="px-4 py-2 text-center">
+                          {(item.quantidade_total || 0) <= (item.estoque_minimo || 0) ? (
+                            <Badge className="bg-red-100 text-red-800">Baixo</Badge>
+                          ) : (
+                            <Badge className="bg-green-100 text-green-800">Normal</Badge>
+                          )}
+                        </td>
+                        <td className="px-4 py-2">{item.ultimo_lote || '-'}</td>
+                        <td className="px-4 py-2">{item.proxima_validade || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // NOVO: Componente para visualizar movimentações
+  const Movimentacoes = () => {
+    const [movimentacoes, setMovimentacoes] = useState([])
+    const [carregado, setCarregado] = useState(false)
+    const [filtro, setFiltro] = useState('')
+    const [tipoFiltro, setTipoFiltro] = useState('todos')
+
+    useEffect(() => {
+      const carregarMovimentacoes = async () => {
+        try {
+          const response = await fetch('https://mzhyi8c1dev6.manus.space/api/estoque/movimentacoes').catch(() => ({ ok: false }))
+          if (response.ok) {
+            const data = await response.json()
+            const movimentacoesList = data.data || data || []
+            // Ordenar por data mais recente
+            movimentacoesList.sort((a, b) => new Date(b.data_movimentacao || 0) - new Date(a.data_movimentacao || 0))
+            setMovimentacoes(movimentacoesList)
+          }
+        } catch (error) {
+          console.error('Erro ao carregar movimentações:', error)
+        } finally {
+          setCarregado(true)
+        }
+      }
+      
+      carregarMovimentacoes()
+    }, [])
+
+    const movimentacoesFiltradas = movimentacoes.filter(mov => {
+      const matchFiltro = (mov.produto_nome || '').toLowerCase().includes(filtro.toLowerCase()) ||
+                          (mov.solicitante || '').toLowerCase().includes(filtro.toLowerCase())
+      const matchTipo = tipoFiltro === 'todos' || mov.tipo === tipoFiltro
+      return matchFiltro && matchTipo
+    })
+
+    return (
+      <div className="space-y-6">
+        <Card className="bg-white border-2 border-pink-500 shadow-lg">
+          <CardHeader className="bg-pink-50">
+            <CardTitle className="flex items-center space-x-2 text-pink-700">
+              <History className="h-6 w-6" />
+              <span>Histórico de Movimentações</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <input
+                type="text"
+                placeholder="Filtrar por produto ou solicitante..."
+                value={filtro}
+                onChange={(e) => setFiltro(e.target.value)}
+                className="p-3 border-2 rounded-lg focus:border-pink-500 focus:ring-2 focus:ring-pink-200"
+              />
+              <select
+                value={tipoFiltro}
+                onChange={(e) => setTipoFiltro(e.target.value)}
+                className="p-3 border-2 rounded-lg bg-white focus:border-pink-500 focus:ring-2 focus:ring-pink-200"
+              >
+                <option value="todos">Todos os tipos</option>
+                <option value="entrada">Apenas Entradas</option>
+                <option value="saida">Apenas Saídas</option>
+              </select>
+            </div>
+
+            {!carregado ? (
+              <div className="flex items-center justify-center p-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-500"></div>
+                <span className="ml-2">Carregando movimentações...</span>
+              </div>
+            ) : movimentacoesFiltradas.length === 0 ? (
+              <p className="text-gray-500 text-center py-8">
+                {filtro || tipoFiltro !== 'todos' ? 'Nenhuma movimentação encontrada com esses filtros.' : 'Nenhuma movimentação registrada.'}
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full table-auto">
+                  <thead>
+                    <tr className="bg-gray-50">
+                      <th className="px-4 py-2 text-left">Data</th>
+                      <th className="px-4 py-2 text-left">Tipo</th>
+                      <th className="px-4 py-2 text-left">Produto</th>
+                      <th className="px-4 py-2 text-center">Quantidade</th>
+                      <th className="px-4 py-2 text-left">Local/Fornecedor</th>
+                      <th className="px-4 py-2 text-left">Solicitante</th>
+                      <th className="px-4 py-2 text-left">Lote/NF</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {movimentacoesFiltradas.map(mov => (
+                      <tr key={mov.id} className="border-b hover:bg-gray-50">
+                        <td className="px-4 py-2">
+                          {mov.data_movimentacao ? new Date(mov.data_movimentacao).toLocaleDateString('pt-BR') : '-'}
+                        </td>
+                        <td className="px-4 py-2">
+                          <Badge className={mov.tipo === 'entrada' ? 'bg-blue-100 text-blue-800' : 'bg-orange-100 text-orange-800'}>
+                            {mov.tipo === 'entrada' ? 'Entrada' : 'Saída'}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-2 font-medium">{mov.produto_nome || 'Sem nome'}</td>
+                        <td className="px-4 py-2 text-center font-bold">{mov.quantidade || 0}</td>
+                        <td className="px-4 py-2">{mov.local_nome || mov.fornecedor_nome || '-'}</td>
+                        <td className="px-4 py-2">
+                          {mov.solicitante ? (
+                            <div className="flex items-center space-x-1">
+                              <User className="h-4 w-4 text-gray-500" />
+                              <span>{mov.solicitante}</span>
+                            </div>
+                          ) : '-'}
+                        </td>
+                        <td className="px-4 py-2">{mov.lote || mov.numero_nf || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // Componente de Análise Preditiva com IA - COM RELATÓRIO DE SOLICITANTES
   const AnalisePreditiva = () => {
     const [analise, setAnalise] = useState(null)
+    const [relatorioSolicitantes, setRelatorioSolicitantes] = useState(null)
     const [carregando, setCarregando] = useState(false)
+    const [carregandoSolicitantes, setCarregandoSolicitantes] = useState(false)
     const [erro, setErro] = useState(null)
 
     const gerarAnalise = async () => {
@@ -1253,11 +1455,30 @@ function App() {
       }
     }
 
+    const gerarRelatorioSolicitantes = async () => {
+      setCarregandoSolicitantes(true)
+      
+      try {
+        const response = await fetch('https://mzhyi8c1dev6.manus.space/api/relatorios/solicitantes').catch(() => ({ ok: false }))
+        if (response.ok) {
+          const data = await response.json()
+          setRelatorioSolicitantes(data)
+        } else {
+          alert('Erro ao gerar relatório de solicitantes')
+        }
+      } catch (error) {
+        console.error('Erro:', error)
+        alert('Erro na conexão')
+      } finally {
+        setCarregandoSolicitantes(false)
+      }
+    }
+
     return (
       <div className="space-y-6">
-        <Card className="bg-white border-2 border-pink-500 shadow-lg">
-          <CardHeader className="bg-pink-50">
-            <CardTitle className="flex items-center space-x-2 text-pink-700">
+        <Card className="bg-white border-2 border-red-500 shadow-lg">
+          <CardHeader className="bg-red-50">
+            <CardTitle className="flex items-center space-x-2 text-red-700">
               <Brain className="h-6 w-6" />
               <span>Análise Preditiva com IA</span>
             </CardTitle>
@@ -1270,7 +1491,7 @@ function App() {
               <Button 
                 onClick={gerarAnalise}
                 disabled={carregando}
-                className="bg-pink-600 hover:bg-pink-700 text-white py-3 px-6 font-semibold rounded-lg"
+                className="bg-red-600 hover:bg-red-700 text-white py-3 px-6 font-semibold rounded-lg"
               >
                 {carregando ? 'Analisando...' : 'Gerar Análise Preditiva'}
               </Button>
@@ -1289,7 +1510,7 @@ function App() {
                 {analise.sugestoes && analise.sugestoes.length > 0 ? (
                   <div className="space-y-3">
                     {analise.sugestoes.map((sugestao, index) => (
-                      <Card key={index} className="border-l-4 border-l-pink-500">
+                      <Card key={index} className="border-l-4 border-l-red-500">
                         <CardContent className="p-4">
                           <div className="flex justify-between items-start">
                             <div className="flex-1">
@@ -1329,25 +1550,70 @@ function App() {
             )}
           </CardContent>
         </Card>
+
+        {/* Relatório de Solicitantes */}
+        <Card className="bg-white border-2 border-green-500 shadow-lg">
+          <CardHeader className="bg-green-50">
+            <CardTitle className="flex items-center space-x-2 text-green-700">
+              <User className="h-6 w-6" />
+              <span>Relatório de Solicitantes</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="text-center mb-4">
+              <p className="text-gray-600 mb-4">
+                Visualize quem são os principais solicitantes de materiais
+              </p>
+              <Button 
+                onClick={gerarRelatorioSolicitantes}
+                disabled={carregandoSolicitantes}
+                className="bg-green-600 hover:bg-green-700 text-white py-3 px-6 font-semibold rounded-lg"
+              >
+                {carregandoSolicitantes ? 'Gerando...' : 'Gerar Relatório de Solicitantes'}
+              </Button>
+            </div>
+
+            {relatorioSolicitantes && (
+              <div className="mt-6">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">Ranking de Solicitantes</h3>
+                
+                {relatorioSolicitantes.ranking && relatorioSolicitantes.ranking.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full table-auto">
+                      <thead>
+                        <tr className="bg-gray-50">
+                          <th className="px-4 py-2 text-left">Posição</th>
+                          <th className="px-4 py-2 text-left">Solicitante</th>
+                          <th className="px-4 py-2 text-center">Total de Saídas</th>
+                          <th className="px-4 py-2 text-center">Itens Solicitados</th>
+                          <th className="px-4 py-2 text-left">Último Pedido</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {relatorioSolicitantes.ranking.map((item, index) => (
+                          <tr key={index} className="border-b hover:bg-gray-50">
+                            <td className="px-4 py-2 font-bold">#{index + 1}</td>
+                            <td className="px-4 py-2 font-medium">{item.solicitante || 'Sem nome'}</td>
+                            <td className="px-4 py-2 text-center">{item.total_saidas || 0}</td>
+                            <td className="px-4 py-2 text-center">{item.total_itens || 0}</td>
+                            <td className="px-4 py-2">
+                              {item.ultimo_pedido ? new Date(item.ultimo_pedido).toLocaleDateString('pt-BR') : '-'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="text-gray-500">Nenhum dado de solicitante disponível.</p>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     )
   }
-
-  // Dados para gráficos
-  const dadosTendencia = [
-    { mes: 'Ago/2025', entradas: 15, saidas: 12 },
-    { mes: 'Set/2025', entradas: 28, saidas: 25 },
-    { mes: 'Out/2025', entradas: 22, saidas: 18 },
-    { mes: 'Nov/2025', entradas: 35, saidas: 30 },
-    { mes: 'Dez/2025', entradas: 18, saidas: 22 }
-  ]
-
-  const dadosDistribuicao = [
-    { local: 'Farmácia', valor: 35, cor: '#3B82F6' },
-    { local: 'Lab. Clínico', valor: 25, cor: '#10B981' },
-    { local: 'Centro Cirúrgico', valor: 20, cor: '#F59E0B' },
-    { local: 'Lab. Reprodução', valor: 20, cor: '#EF4444' }
-  ]
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -1473,26 +1739,32 @@ function App() {
               </Card>
             </div>
 
-            {/* Gráficos */}
+            {/* Gráficos com dados REAIS */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <Card className="border-blue-200">
                 <CardHeader>
                   <CardTitle className="flex items-center space-x-2 text-blue-700">
                     <BarChart3 className="h-5 w-5" />
-                    <span>Tendência de Movimentações</span>
+                    <span>Tendência de Movimentações (Dados Reais)</span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <LineChart data={dadosTendencia}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="mes" />
-                      <YAxis />
-                      <Tooltip />
-                      <Line type="monotone" dataKey="entradas" stroke="#3B82F6" strokeWidth={2} />
-                      <Line type="monotone" dataKey="saidas" stroke="#EF4444" strokeWidth={2} />
-                    </LineChart>
-                  </ResponsiveContainer>
+                  {dadosReais.tendencia.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <LineChart data={dadosReais.tendencia}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="mes" />
+                        <YAxis />
+                        <Tooltip />
+                        <Line type="monotone" dataKey="entradas" stroke="#3B82F6" strokeWidth={2} />
+                        <Line type="monotone" dataKey="saidas" stroke="#EF4444" strokeWidth={2} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex items-center justify-center h-64 text-gray-500">
+                      Nenhum dado de movimentação disponível ainda
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -1500,39 +1772,34 @@ function App() {
                 <CardHeader>
                   <CardTitle className="flex items-center space-x-2 text-green-700">
                     <PieChart className="h-5 w-5" />
-                    <span>Distribuição por Locais</span>
+                    <span>Distribuição por Locais (Dados Reais)</span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <RechartsPieChart>
-                      <Pie
-                        data={dadosDistribuicao}
-                        cx="50%"
-                        cy="50%"
-                        outerRadius={80}
-                        fill="#8884d8"
-                        dataKey="valor"
-                        label={({ local, valor }) => `${local}: ${valor}%`}
-                      >
-                        {dadosDistribuicao.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.cor} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                    </RechartsPieChart>
-                  </ResponsiveContainer>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {dadosDistribuicao.map((item, index) => (
-                      <div key={index} className="flex items-center space-x-2">
-                        <div 
-                          className="w-3 h-3 rounded-full" 
-                          style={{ backgroundColor: item.cor }}
-                        ></div>
-                        <span className="text-sm text-gray-600">{item.local}</span>
-                      </div>
-                    ))}
-                  </div>
+                  {dadosReais.distribuicao.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <RechartsPieChart>
+                        <Pie
+                          data={dadosReais.distribuicao}
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="valor"
+                          label={({ local, valor }) => `${local}: ${valor}%`}
+                        >
+                          {dadosReais.distribuicao.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.cor || '#8884d8'} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                      </RechartsPieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex items-center justify-center h-64 text-gray-500">
+                      Nenhum dado de distribuição disponível ainda
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -1543,28 +1810,9 @@ function App() {
         {activeTab === 'saidas' && <SaidaEstoque />}
         {activeTab === 'produtos' && <CadastrarProduto />}
         {activeTab === 'fornecedores' && <GerenciarFornecedores />}
+        {activeTab === 'estoque' && <EstoqueAtual />}
+        {activeTab === 'movimentacoes' && <Movimentacoes />}
         {activeTab === 'relatorios' && <AnalisePreditiva />}
-        
-        {activeTab === 'importacao' && (
-          <Card className="bg-white border-2 border-indigo-500 shadow-lg">
-            <CardHeader className="bg-indigo-50">
-              <CardTitle className="flex items-center space-x-2 text-indigo-700">
-                <Package className="h-6 w-6" />
-                <span>Importação de Dados</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-6">
-              <div className="text-center py-8">
-                <p className="text-gray-600 mb-4">
-                  Funcionalidade de importação em desenvolvimento
-                </p>
-                <p className="text-sm text-gray-500">
-                  Em breve você poderá importar dados via CSV/Excel
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
       </main>
     </div>
   )
