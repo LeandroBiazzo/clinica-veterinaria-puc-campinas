@@ -12,7 +12,8 @@ import {
   Plus,
   Edit,
   Trash2,
-  Brain
+  Brain,
+  Users
 } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPieChart, Cell, Pie } from 'recharts'
 import './App.css'
@@ -128,6 +129,7 @@ function App() {
     { id: 'entradas', label: 'Entradas', color: 'border-blue-500' },
     { id: 'saidas', label: 'Saídas', color: 'border-orange-500' },
     { id: 'produtos', label: 'Produtos', color: 'border-purple-500' },
+    { id: 'fornecedores', label: 'Fornecedores', color: 'border-teal-500' },
     { id: 'importacao', label: 'Importação', color: 'border-indigo-500' },
     { id: 'relatorios', label: 'Relatórios', color: 'border-pink-500' }
   ]
@@ -206,7 +208,8 @@ function App() {
           setMostrarFormFornecedor(false)
           alert('Fornecedor cadastrado com sucesso!')
         } else {
-          alert('Erro ao cadastrar fornecedor')
+          const errorData = await response.json().catch(() => ({ message: 'Erro desconhecido' }))
+          alert('Erro ao cadastrar fornecedor: ' + (errorData.message || 'Erro desconhecido'))
         }
       } catch (error) {
         console.error('Erro ao cadastrar fornecedor:', error)
@@ -243,10 +246,12 @@ function App() {
             validade: '',
             numero_nf: ''
           })
-          // Atualizar métricas de forma segura
-          if (window.atualizarMetricas) {
-            setTimeout(() => window.atualizarMetricas(), 1000)
-          }
+          // Atualizar métricas de forma segura e forçada
+          setTimeout(() => {
+            if (window.atualizarMetricas) {
+              window.atualizarMetricas()
+            }
+          }, 2000) // Aguardar 2 segundos para o backend processar
         } else {
           const errorData = await response.json().catch(() => ({ message: 'Erro desconhecido' }))
           console.error('Erro na resposta:', errorData)
@@ -439,19 +444,30 @@ function App() {
     )
   }
 
-  // Componente para saída de estoque
+  // Componente para saída de estoque - CORRIGIDO
   const SaidaEstoque = () => {
     console.log('Renderizando SaidaEstoque')
     
     const [saida, setSaida] = useState({
       produto_id: '',
       quantidade: '',
-      local_destino: '',
+      local_destino_id: '', // CORRIGIDO: usar local_destino_id
       observacoes: ''
     })
     const [produtos, setProdutos] = useState([])
+    const [locais, setLocais] = useState([])
     const [salvando, setSalvando] = useState(false)
     const [carregado, setCarregado] = useState(false)
+
+    // Locais predefinidos com IDs
+    const locaisPredefinidos = [
+      { id: 1, nome: 'Farmácia' },
+      { id: 2, nome: 'Lab. Clínico' },
+      { id: 3, nome: 'Centro Cirúrgico' },
+      { id: 4, nome: 'Lab. Reprodução' },
+      { id: 5, nome: 'Clínica Grandes' },
+      { id: 6, nome: 'Aula Externa' }
+    ]
 
     useEffect(() => {
       console.log('Carregando produtos para SaidaEstoque')
@@ -466,6 +482,9 @@ function App() {
             setProdutos(produtosList)
             console.log('Produtos carregados para saída:', data)
           }
+          
+          // Definir locais predefinidos
+          setLocais(locaisPredefinidos)
         } catch (error) {
           console.error('Erro ao carregar produtos:', error)
         } finally {
@@ -485,14 +504,30 @@ function App() {
         return
       }
 
+      // Validar se local foi selecionado
+      if (!saida.local_destino_id) {
+        alert('Por favor, selecione um local de destino!')
+        return
+      }
+
       console.log('Registrando saída:', saida)
       setSalvando(true)
 
       try {
+        // Preparar dados para envio
+        const dadosSaida = {
+          produto_id: parseInt(saida.produto_id),
+          quantidade: parseInt(saida.quantidade),
+          local_destino_id: parseInt(saida.local_destino_id),
+          observacoes: saida.observacoes || ''
+        }
+
+        console.log('Dados da saída preparados:', dadosSaida)
+
         const response = await fetch('https://mzhyi8c1dev6.manus.space/api/estoque/saidas', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(saida)
+          body: JSON.stringify(dadosSaida)
         })
 
         if (response.ok) {
@@ -500,13 +535,15 @@ function App() {
           setSaida({
             produto_id: '',
             quantidade: '',
-            local_destino: '',
+            local_destino_id: '',
             observacoes: ''
           })
-          // Atualizar métricas de forma segura
-          if (window.atualizarMetricas) {
-            setTimeout(() => window.atualizarMetricas(), 1000)
-          }
+          // Atualizar métricas de forma segura e forçada
+          setTimeout(() => {
+            if (window.atualizarMetricas) {
+              window.atualizarMetricas()
+            }
+          }, 2000) // Aguardar 2 segundos para o backend processar
         } else {
           const errorData = await response.json().catch(() => ({ message: 'Erro desconhecido' }))
           console.error('Erro na resposta:', errorData)
@@ -578,18 +615,17 @@ function App() {
                 <div>
                   <label className="block text-sm font-semibold mb-2 text-gray-700">Local de Destino *</label>
                   <select
-                    value={saida.local_destino}
-                    onChange={(e) => setSaida({...saida, local_destino: e.target.value})}
+                    value={saida.local_destino_id}
+                    onChange={(e) => setSaida({...saida, local_destino_id: e.target.value})}
                     className="w-full p-3 border-2 rounded-lg bg-white focus:border-orange-500 focus:ring-2 focus:ring-orange-200 transition-all"
                     required
                   >
                     <option value="">Selecione o destino</option>
-                    <option value="Farmácia">Farmácia</option>
-                    <option value="Lab. Clínico">Lab. Clínico</option>
-                    <option value="Centro Cirúrgico">Centro Cirúrgico</option>
-                    <option value="Lab. Reprodução">Lab. Reprodução</option>
-                    <option value="Clínica Grandes">Clínica Grandes</option>
-                    <option value="Aula Externa">Aula Externa</option>
+                    {locais.map(local => (
+                      <option key={local.id} value={local.id}>
+                        {local.nome}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -619,7 +655,7 @@ function App() {
     )
   }
 
-  // Componente para cadastro de produtos
+  // Componente para cadastro de produtos - CORRIGIDO
   const CadastrarProduto = () => {
     const [produto, setProduto] = useState({
       nome: '',
@@ -663,24 +699,38 @@ function App() {
           ? `https://mzhyi8c1dev6.manus.space/api/produtos/${editando}`
           : 'https://mzhyi8c1dev6.manus.space/api/produtos'
         
+        // Preparar dados para envio
+        const dadosProduto = {
+          nome: produto.nome,
+          categoria: produto.categoria,
+          estoque_minimo: parseInt(produto.estoque_minimo) || 10,
+          preco_unitario: produto.preco_unitario ? parseFloat(produto.preco_unitario) : null,
+          descricao: produto.descricao || ''
+        }
+
+        console.log('Enviando produto:', dadosProduto)
+        
         const response = await fetch(url, {
           method: editando ? 'PUT' : 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(produto)
+          body: JSON.stringify(dadosProduto)
         })
 
         if (response.ok) {
-          const novoProduto = await response.json()
+          const produtoRetornado = await response.json()
           
           if (editando) {
-            setProdutos(produtos.map(p => p.id === editando ? novoProduto : p).sort((a, b) => (a.nome || '').localeCompare(b.nome || '')))
+            // Atualizar produto na lista
+            setProdutos(produtos.map(p => p.id === editando ? produtoRetornado : p).sort((a, b) => (a.nome || '').localeCompare(b.nome || '')))
             setEditando(null)
             alert('Produto atualizado com sucesso!')
           } else {
-            setProdutos([...produtos, novoProduto].sort((a, b) => (a.nome || '').localeCompare(b.nome || '')))
+            // Adicionar novo produto à lista
+            setProdutos([...produtos, produtoRetornado].sort((a, b) => (a.nome || '').localeCompare(b.nome || '')))
             alert('Produto cadastrado com sucesso!')
           }
           
+          // Limpar formulário
           setProduto({
             nome: '',
             categoria: '',
@@ -688,8 +738,16 @@ function App() {
             preco_unitario: '',
             descricao: ''
           })
+
+          // Atualizar métricas
+          setTimeout(() => {
+            if (window.atualizarMetricas) {
+              window.atualizarMetricas()
+            }
+          }, 1000)
         } else {
           const errorData = await response.json().catch(() => ({ message: 'Erro desconhecido' }))
+          console.error('Erro na resposta:', errorData)
           alert('Erro ao salvar produto: ' + (errorData.message || 'Erro desconhecido'))
         }
       } catch (error) {
@@ -701,7 +759,13 @@ function App() {
     }
 
     const handleEditar = (produtoParaEditar) => {
-      setProduto(produtoParaEditar)
+      setProduto({
+        nome: produtoParaEditar.nome || '',
+        categoria: produtoParaEditar.categoria || '',
+        estoque_minimo: produtoParaEditar.estoque_minimo || 10,
+        preco_unitario: produtoParaEditar.preco_unitario || '',
+        descricao: produtoParaEditar.descricao || ''
+      })
       setEditando(produtoParaEditar.id)
     }
 
@@ -716,8 +780,16 @@ function App() {
         if (response.ok) {
           setProdutos(produtos.filter(p => p.id !== id))
           alert('Produto excluído com sucesso!')
+          
+          // Atualizar métricas
+          setTimeout(() => {
+            if (window.atualizarMetricas) {
+              window.atualizarMetricas()
+            }
+          }, 1000)
         } else {
-          alert('Erro ao excluir produto')
+          const errorData = await response.json().catch(() => ({ message: 'Erro desconhecido' }))
+          alert('Erro ao excluir produto: ' + (errorData.message || 'Erro desconhecido'))
         }
       } catch (error) {
         console.error('Erro:', error)
@@ -885,6 +957,253 @@ function App() {
                             </button>
                             <button
                               onClick={() => handleExcluir(prod.id)}
+                              className="text-red-600 hover:text-red-800 p-1"
+                              title="Excluir"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // Componente para gerenciar fornecedores - NOVO
+  const GerenciarFornecedores = () => {
+    const [fornecedor, setFornecedor] = useState({
+      nome: '',
+      contato: '',
+      email: ''
+    })
+    const [fornecedores, setFornecedores] = useState([])
+    const [salvando, setSalvando] = useState(false)
+    const [carregado, setCarregado] = useState(false)
+    const [editando, setEditando] = useState(null)
+
+    useEffect(() => {
+      const carregarFornecedores = async () => {
+        try {
+          const response = await fetch('https://mzhyi8c1dev6.manus.space/api/fornecedores').catch(() => ({ ok: false }))
+          if (response.ok) {
+            const data = await response.json()
+            const fornecedoresList = data.data || data || []
+            // Ordenar alfabeticamente
+            fornecedoresList.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''))
+            setFornecedores(fornecedoresList)
+          }
+        } catch (error) {
+          console.error('Erro ao carregar fornecedores:', error)
+        } finally {
+          setCarregado(true)
+        }
+      }
+      
+      carregarFornecedores()
+    }, [])
+
+    const handleSubmit = async (e) => {
+      e.preventDefault()
+      setSalvando(true)
+
+      try {
+        const url = editando 
+          ? `https://mzhyi8c1dev6.manus.space/api/fornecedores/${editando}`
+          : 'https://mzhyi8c1dev6.manus.space/api/fornecedores'
+        
+        const response = await fetch(url, {
+          method: editando ? 'PUT' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(fornecedor)
+        })
+
+        if (response.ok) {
+          const fornecedorRetornado = await response.json()
+          
+          if (editando) {
+            setFornecedores(fornecedores.map(f => f.id === editando ? fornecedorRetornado : f).sort((a, b) => (a.nome || '').localeCompare(b.nome || '')))
+            setEditando(null)
+            alert('Fornecedor atualizado com sucesso!')
+          } else {
+            setFornecedores([...fornecedores, fornecedorRetornado].sort((a, b) => (a.nome || '').localeCompare(b.nome || '')))
+            alert('Fornecedor cadastrado com sucesso!')
+          }
+          
+          setFornecedor({
+            nome: '',
+            contato: '',
+            email: ''
+          })
+        } else {
+          const errorData = await response.json().catch(() => ({ message: 'Erro desconhecido' }))
+          alert('Erro ao salvar fornecedor: ' + (errorData.message || 'Erro desconhecido'))
+        }
+      } catch (error) {
+        console.error('Erro:', error)
+        alert('Erro na conexão')
+      } finally {
+        setSalvando(false)
+      }
+    }
+
+    const handleEditar = (fornecedorParaEditar) => {
+      setFornecedor({
+        nome: fornecedorParaEditar.nome || '',
+        contato: fornecedorParaEditar.contato || '',
+        email: fornecedorParaEditar.email || ''
+      })
+      setEditando(fornecedorParaEditar.id)
+    }
+
+    const handleExcluir = async (id) => {
+      if (!confirm('Tem certeza que deseja excluir este fornecedor?')) return
+
+      try {
+        const response = await fetch(`https://mzhyi8c1dev6.manus.space/api/fornecedores/${id}`, {
+          method: 'DELETE'
+        })
+
+        if (response.ok) {
+          setFornecedores(fornecedores.filter(f => f.id !== id))
+          alert('Fornecedor excluído com sucesso!')
+        } else {
+          const errorData = await response.json().catch(() => ({ message: 'Erro desconhecido' }))
+          alert('Erro ao excluir fornecedor: ' + (errorData.message || 'Erro desconhecido'))
+        }
+      } catch (error) {
+        console.error('Erro:', error)
+        alert('Erro na conexão')
+      }
+    }
+
+    const cancelarEdicao = () => {
+      setEditando(null)
+      setFornecedor({
+        nome: '',
+        contato: '',
+        email: ''
+      })
+    }
+
+    return (
+      <div className="space-y-6">
+        <Card className="bg-white border-2 border-teal-500 shadow-lg">
+          <CardHeader className="bg-teal-50">
+            <CardTitle className="flex items-center space-x-2 text-teal-700">
+              <Users className="h-6 w-6" />
+              <span>{editando ? 'Editar Fornecedor' : 'Cadastrar Fornecedor'}</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold mb-2 text-gray-700">Nome do Fornecedor *</label>
+                <input
+                  type="text"
+                  value={fornecedor.nome}
+                  onChange={(e) => setFornecedor({...fornecedor, nome: e.target.value})}
+                  className="w-full p-3 border-2 rounded-lg focus:border-teal-500 focus:ring-2 focus:ring-teal-200 transition-all"
+                  required
+                />
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold mb-2 text-gray-700">Contato/Telefone</label>
+                  <input
+                    type="text"
+                    value={fornecedor.contato}
+                    onChange={(e) => setFornecedor({...fornecedor, contato: e.target.value})}
+                    className="w-full p-3 border-2 rounded-lg focus:border-teal-500 focus:ring-2 focus:ring-teal-200 transition-all"
+                    placeholder="(19) 99999-9999"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-2 text-gray-700">Email</label>
+                  <input
+                    type="email"
+                    value={fornecedor.email}
+                    onChange={(e) => setFornecedor({...fornecedor, email: e.target.value})}
+                    className="w-full p-3 border-2 rounded-lg focus:border-teal-500 focus:ring-2 focus:ring-teal-200 transition-all"
+                    placeholder="contato@fornecedor.com"
+                  />
+                </div>
+              </div>
+
+              <div className="flex space-x-2">
+                <Button 
+                  type="submit" 
+                  disabled={salvando} 
+                  className="bg-teal-600 hover:bg-teal-700 text-white py-3 px-6 font-semibold rounded-lg transition-all transform hover:scale-105"
+                >
+                  {salvando ? 'Salvando...' : (editando ? 'Atualizar Fornecedor' : 'Cadastrar Fornecedor')}
+                </Button>
+                
+                {editando && (
+                  <Button 
+                    type="button" 
+                    onClick={cancelarEdicao}
+                    className="bg-gray-500 hover:bg-gray-600 text-white py-3 px-6 font-semibold rounded-lg"
+                  >
+                    Cancelar
+                  </Button>
+                )}
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+
+        {/* Lista de Fornecedores */}
+        <Card className="bg-white shadow-lg">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2 text-gray-700">
+              <Users className="h-5 w-5" />
+              <span>Fornecedores Cadastrados ({fornecedores.length})</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {!carregado ? (
+              <div className="flex items-center justify-center p-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-500"></div>
+                <span className="ml-2">Carregando fornecedores...</span>
+              </div>
+            ) : fornecedores.length === 0 ? (
+              <p className="text-gray-500 text-center py-8">Nenhum fornecedor cadastrado ainda.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full table-auto">
+                  <thead>
+                    <tr className="bg-gray-50">
+                      <th className="px-4 py-2 text-left">Nome</th>
+                      <th className="px-4 py-2 text-left">Contato</th>
+                      <th className="px-4 py-2 text-left">Email</th>
+                      <th className="px-4 py-2 text-center">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {fornecedores.map(forn => (
+                      <tr key={forn.id} className="border-b hover:bg-gray-50">
+                        <td className="px-4 py-2 font-medium">{forn.nome || 'Sem nome'}</td>
+                        <td className="px-4 py-2">{forn.contato || '-'}</td>
+                        <td className="px-4 py-2">{forn.email || '-'}</td>
+                        <td className="px-4 py-2 text-center">
+                          <div className="flex justify-center space-x-2">
+                            <button
+                              onClick={() => handleEditar(forn)}
+                              className="text-blue-600 hover:text-blue-800 p-1"
+                              title="Editar"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleExcluir(forn.id)}
                               className="text-red-600 hover:text-red-800 p-1"
                               title="Excluir"
                             >
@@ -1223,6 +1542,7 @@ function App() {
         {activeTab === 'entradas' && <EntradaEstoque />}
         {activeTab === 'saidas' && <SaidaEstoque />}
         {activeTab === 'produtos' && <CadastrarProduto />}
+        {activeTab === 'fornecedores' && <GerenciarFornecedores />}
         {activeTab === 'relatorios' && <AnalisePreditiva />}
         
         {activeTab === 'importacao' && (
